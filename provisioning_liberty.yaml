@@ -1,0 +1,53 @@
+- hosts: all
+  gather_facts: no
+  tasks:
+
+  - name: install unzip (rpm) 
+    yum:
+      name: unzip
+      state: present
+
+  - name: install ibm-java(rpm) 
+    yum:
+      name: java
+      state: present
+
+  - name: Create Liberty install directory
+    file:
+      state: directory
+      path: /was/AppServer
+
+  - name: Unarchive Liberty zip
+    unarchive:
+      src: https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/wasdev/downloads/wlp/20.0.0.5/wlp-javaee8-20.0.0.5.zip
+      dest: /was/AppServer
+      remote_src: yes
+
+  - name: Create Liberty server
+    profile_liberty:
+      state: present 
+      libertydir: /was/AppServer/wlp
+      name: "{{ server_name }}"
+
+  - name: server.xml ip setting
+    shell: sed -i '28 i\                  host="{{ ansible_host }}"' /was/AppServer/wlp/usr/servers/"{{ server_name }}"/server.xml
+
+  - name: server.xml http port setting
+    shell: sed -i 's/httpPort="9080"/httpPort="{{ http_port }}"/g' /was/AppServer/wlp/usr/servers/"{{ server_name }}"/server.xml
+ 
+  - name: server.xml https port setting
+    shell: sed -i 's/httpsPort="9443"/httpsPort="{{ https_port }}"/g' /was/AppServer/wlp/usr/servers/"{{ server_name }}"/server.xml
+
+  - name: Application Copy
+    copy:
+      src: "{{ app_name }}"
+      dest: /was/AppServer/wlp/usr/servers/{{ server_name }}/apps
+
+  - name: server.xml app deploy setting
+    shell: sed -i '34 i\    <application context-root="/" type="war" location="{{ app_name }}"/>' /was/AppServer/wlp/usr/servers/"{{ server_name }}"/server.xml
+
+  - name: Liberty server start
+    liberty_server:
+      state: started
+      libertydir: /was/AppServer/wlp
+      name: "{{ server_name }}"
